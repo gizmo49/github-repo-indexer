@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { CommitDTO } from '../dtos/CommitDTO';
 import { RepositoryDTO } from '../dtos/RepositoryDTO';
 import { AppDataSource } from '../data-source';
@@ -6,18 +6,24 @@ import { CommitEntitySchema } from '../db/schema/CommitEntitySchema';
 import { RepositoryEntitySchema } from '../db/schema/RepositoryEntitySchema';
 import { parentPort } from 'worker_threads';
 
-// Define the GitHubService class
 export class GitHubService {
-    private baseUrl = 'https://api.github.com';
+    private baseUrl: string;
+    private axiosInstance: AxiosInstance;
+    private commitRepository: any;
+    private repositoryRepository: any;
 
-    /**
-     * Fetch commits from a repository.
-     * @param repoName - The name of the repository.
-     * @param sinceDate - Optional date to filter commits since.
-     * @param page - Page number for pagination.
-     * @param perPage - Number of commits per page.
-     * @returns An object containing totalRecords and an array of commits.
-     */
+    constructor(
+        baseUrl: string = 'https://api.github.com',
+        axiosInstance: AxiosInstance = axios,
+        commitRepository: any = AppDataSource.getRepository(CommitEntitySchema),
+        repositoryRepository: any = AppDataSource.getRepository(RepositoryEntitySchema)
+    ) {
+        this.baseUrl = baseUrl;
+        this.axiosInstance = axiosInstance;
+        this.commitRepository = commitRepository;
+        this.repositoryRepository = repositoryRepository;
+    }
+
     async getCommits(orgName: string, repoName: string, sinceDate?: string, page = 1, perPage = 100): Promise<{ totalRecords: number, commits: CommitDTO[] }> {
         const commits: CommitDTO[] = [];
         let hasNextPage = true;
@@ -26,7 +32,7 @@ export class GitHubService {
             const params: any = { page, per_page: perPage };
             if (sinceDate) params.since = sinceDate;
 
-            const response = await axios.get(`${this.baseUrl}/repos/${orgName}/${repoName}/commits`, { params });
+            const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}/commits`, { params });
             if (response.data.length === 0) {
                 hasNextPage = false;
             } else {
@@ -40,18 +46,12 @@ export class GitHubService {
             }
         }
 
-        const totalRecords = commits.length; // For simplicity; GitHub API doesn't provide total count directly
+        const totalRecords = commits.length;
         return { totalRecords, commits };
     }
 
-    /**
-     * Fetch information about a repository.
-     * @param orgName - The name of the organization.
-     * @param repoName - The name of the repository.
-     * @returns An object containing repository information.
-     */
     async getRepositoryInfo(orgName: string, repoName: string): Promise<RepositoryDTO> {
-        const response = await axios.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
+        const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
         const data = response.data;
         return {
             name: data.name,
@@ -67,14 +67,8 @@ export class GitHubService {
         };
     }
 
-    /**
-     * Fetch top N commit authors by commit counts from the database.
-     * @param limit - Number of top authors to retrieve.
-     * @returns An array of top commit authors with their commit counts.
-     */
     async getTopCommitAuthors(limit: number): Promise<{ author: string, count: number }[]> {
-        const commitRepository = AppDataSource.getRepository(CommitEntitySchema);
-        const authors = await commitRepository
+        const authors = await this.commitRepository
             .createQueryBuilder('commit')
             .select('commit.author', 'author')
             .addSelect('COUNT(commit.id)', 'count')
@@ -89,15 +83,8 @@ export class GitHubService {
         }));
     }
 
-    /**
-     * Retrieve commits of a repository by repository name from the database.
-     * @param orgName - The name of the organization.
-     * @param repoName - The name of the repository.
-     * @returns An array of commits.
-     */
     async getCommitsByRepositoryName(orgName: string, repoName: string): Promise<CommitDTO[]> {
-        const commitRepository = AppDataSource.getRepository(CommitEntitySchema);
-        const commits = await commitRepository.find({
+        const commits = await this.commitRepository.find({
             where: { repository: { orgName, repoName } },
             relations: ['repository'],
         });
@@ -110,17 +97,8 @@ export class GitHubService {
         }));
     }
 
-    /**
-     * Add a new repository to the database or update it if it already exists.
-     * @param orgName - The name of the organization.
-     * @param repoName - The name of the repository.
-     * @returns An object with a message indicating the status of the operation.
-     */
     async addRepository({ orgName, repoName }: { orgName: string; repoName: string }): Promise<{ message: string }> {
-        const repositoryRepository = AppDataSource.getRepository(RepositoryEntitySchema);
-
-        // Fetch repository information from GitHub API
-        const response = await axios.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
+        const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
         const repoData: RepositoryDTO = {
             name: response.data.name,
             description: response.data.description,
@@ -134,20 +112,17 @@ export class GitHubService {
             updated_at: response.data.updated_at,
         };
 
-        // Check if the repository already exists
-        let repository = await repositoryRepository.findOne({
+        let repository = await this.repositoryRepository.findOne({
             where: { orgName, repoName }
         });
 
         if (repository) {
-            // Update the existing repository
-            repository = repositoryRepository.merge(repository, {
+            repository = this.repositoryRepository.merge(repository, {
                 ...repoData,
                 updatedAt: new Date(),
             });
         } else {
-            // Create a new repository entity
-            repository = repositoryRepository.create({
+            repository = this.repositoryRepository.create({
                 orgName,
                 repoName,
                 ...repoData,
@@ -156,14 +131,9 @@ export class GitHubService {
             });
         }
 
-        // Save the repository entity to the database
-        await repositoryRepository.save(repository);
-
-        // Trigger commit indexing
-        const commitRepository = AppDataSource.getRepository(CommitEntitySchema);
+        await this.repositoryRepository.save(repository);
         parentPort?.postMessage({ event: 'start_commit_indexing', orgName, repoName });
 
-        // Return a response indicating that indexing has been triggered
         return { message: `Indexing for repository ${orgName}/${repoName} has been triggered.` };
     }
 }

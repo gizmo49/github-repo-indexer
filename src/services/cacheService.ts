@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const redis = new Redis(process.env.REDIS_URL); // Use the Redis URL
+const redis: Redis = new Redis(process.env.REDIS_URL || ""); // Use the Redis URL
 
 
 redis.on('error', (err) => {
