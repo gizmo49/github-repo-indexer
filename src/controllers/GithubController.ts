@@ -131,7 +131,7 @@ router.get('/commits', async (req: Request, res: Response): Promise<void> => {
 router.get('/repository/:orgName/:repoName', async (req: Request, res: Response): Promise<void> => {
     const { orgName, repoName } = req.params;
     try {
-        const repoInfo: IGithubRepository = await gitHubService.getRepositoryInfo(orgName, repoName);
+        const repoInfo = await gitHubService.getRepositoryInfo(orgName, repoName);
         res.json(repoInfo);
     } catch (error: unknown) {
         res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });

@@ -1,28 +1,26 @@
 import { AppDataSource } from '../ormconfig';
-import commitQueue from '../queues/commitQueue'; // Import the commit queue
+import commitQueue from '../queues/commitQueue';
 import { RepositoryEntity } from '../db/entities/RepositoryEntity';
 import { CommitEntity } from '../db/entities/CommitEntity';
 import { gitHubService } from './gitHubService';
-
+import { IGithubCommit } from '../interface';
 
 class MonitoringService {
     private repoRepository = AppDataSource.getRepository(RepositoryEntity);
     private commitRepository = AppDataSource.getRepository(CommitEntity);
 
-    constructor() {
-        // this.seedChromiumRepository(); // Seed the Chromium repo on start-up
-        this.startMonitoring(); // Start the regular monitoring process
+    async init() {
+        await this.seedChromiumRepository(); // Seed Chromium repo
+        this.startMonitoring(); // Start monitoring process
     }
 
-    private async ensureRepository(orgName: string, repoName: string) {
+    async ensureRepository(orgName: string, repoName: string) {
         const repoInfo = await gitHubService.getRepositoryInfo(orgName, repoName);
-        if (!repoInfo) {
+        if (!repoInfo || repoInfo === null) {
             throw new Error(`Repository ${orgName}/${repoName} does not exist`);
         }
 
-        let repository = await this.repoRepository.findOne({
-            where: { orgName, repoName }
-        });
+        let repository = await this.repoRepository.findOne({ where: { orgName, repoName } });
 
         if (!repository) {
             repository = this.repoRepository.create({
@@ -37,40 +35,36 @@ class MonitoringService {
             await this.repoRepository.save(repository);
         }
 
-        // Enqueue the commit indexing job
-        commitQueue.add('indexCommits', { orgName, repoName, sinceCommitUrl: repository.lastCommitUrl });
+        await commitQueue.add('indexCommits', { orgName, repoName, sinceCommitUrl: repository.lastCommitUrl });
     }
 
-    private async fetchCommits(orgName: string, repoName: string, sinceCommitUrl: string) {
-        const { commits } = await gitHubService.getCommits(orgName, repoName, sinceCommitUrl);
-        return commits;
-    }
-
-    private async indexCommits(orgName: string, repoName: string, sinceCommitUrl: string) {
+    async indexCommits(orgName: string, repoName: string, sinceCommitUrl: string) {
         try {
-            const commits = await this.fetchCommits(orgName, repoName, sinceCommitUrl);
+            const commits: IGithubCommit[] = await this.fetchCommits(orgName, repoName, sinceCommitUrl);
 
             if (commits.length > 0) {
-                // Add commits to the queue
-                commitQueue.add('indexCommits', { commits, orgName, repoName });
+                await commitQueue.add('indexCommits', { commits, orgName, repoName });
 
-                // Update repository with the latest commit URL
                 const lastCommitUrl = commits[commits.length - 1].commitUrl;
                 await this.repoRepository.update({ orgName, repoName }, { lastCommitUrl });
             }
 
-            // Continue indexing if not complete
             if (!await this.isIndexingComplete(orgName, repoName)) {
-                this.startMonitoring(); // Continue monitoring
+                this.startMonitoring();
             } else {
                 await this.repoRepository.update({ orgName, repoName }, { indexingComplete: true });
             }
-        } catch (error: any) {
-            console.error(`Error indexing commits for ${orgName}/${repoName}:`, error.message);
+        } catch (error: unknown) {
+            throw new Error(`Error indexing commits for ${orgName}/${repoName}`);
         }
     }
 
-    private async processRepositories() {
+    private async fetchCommits(orgName: string, repoName: string, sinceCommitUrl: string): Promise<IGithubCommit[]> {
+        const { commits } = await gitHubService.getCommits(orgName, repoName, sinceCommitUrl);
+        return commits;
+    }
+
+    public async processRepositories() {
         const batchSize = 50;
         let offset = 0;
         let hasMore = true;
@@ -96,25 +90,11 @@ class MonitoringService {
     }
 
     private async isIndexingComplete(orgName: string, repoName: string): Promise<boolean> {
-        const repository = await this.repoRepository.findOne({
-            where: { orgName, repoName }
-        });
+        const repository = await this.repoRepository.findOne({ where: { orgName, repoName } });
         return repository ? repository.indexingComplete : false;
     }
 
-    private async seedChromiumRepository() {
-        const orgName = 'chromium';
-        const repoName = 'chromium';
-        
-        try {
-            await this.ensureRepository(orgName, repoName);
-            console.log(`Chromium repository ${orgName}/${repoName} has been initialized.`);
-        } catch (error: any) {
-            console.error(`Error seeding Chromium repository:`, error.message);
-        }
-    }
-
-    private startMonitoring() {
+    public startMonitoring() {
         setInterval(async () => {
             try {
                 await this.processRepositories();
@@ -124,7 +104,18 @@ class MonitoringService {
             }
         }, 60 * 60 * 1000); // Every hour
     }
+
+    public async seedChromiumRepository() {
+        const orgName = 'chromium';
+        const repoName = 'chromium';
+
+        try {
+            await this.ensureRepository(orgName, repoName);
+            console.log(`Chromium repository ${orgName}/${repoName} has been initialized.`);
+        } catch (error: any) {
+            throw new Error(`Error seeding Chromium repository: ${error.message}`);
+        }
+    }
 }
 
-// Initialize the monitoring service
 export const monitoringService = new MonitoringService();

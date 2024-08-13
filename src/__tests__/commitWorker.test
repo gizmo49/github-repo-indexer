@@ -1,0 +1,142 @@
+import { parentPort, workerData } from 'worker_threads';
+import { AppDataSource } from '../ormconfig';
+import { CommitEntity } from '../db/entities/CommitEntity';
+import { RepositoryEntity } from '../db/entities/RepositoryEntity';
+import { cache } from '../services/cacheService';
+import { IGithubCommit } from '../interface';
+
+// Mock dependencies
+jest.mock('worker_threads', () => ({
+    parentPort: {
+        postMessage: jest.fn(),
+    },
+    workerData: {
+        commits: [],
+        orgName: '',
+        repoName: '',
+    },
+}));
+
+jest.mock('../services/cacheService', () => ({
+    cache: {
+        get: jest.fn(),
+        set: jest.fn(),
+    },
+}));
+
+jest.mock('../ormconfig', () => ({
+    AppDataSource: {
+        getRepository: jest.fn(),
+    },
+}));
+
+const commitWorker = require('../workers/commitWorker');
+
+describe('commitWorker', () => {
+    let commitRepository: any;
+    let repositoryRepository: any;
+
+    beforeEach(() => {
+        commitRepository = {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+        };
+        repositoryRepository = {
+            findOne: jest.fn(),
+        };
+        (AppDataSource.getRepository as jest.Mock).mockImplementation((entity: any) => {
+            if (entity === CommitEntity) {
+                return commitRepository;
+            }
+            if (entity === RepositoryEntity) {
+                return repositoryRepository;
+            }
+            throw new Error('Unknown repository');
+        });
+    });
+
+    test('should process commits and update the cache', async () => {
+        // Setup
+        const commits: IGithubCommit[] = [
+            {
+                commitMessage: 'Initial commit',
+                author: 'Author',
+                commitDate: '2024-01-01T00:00:00Z',
+                commitUrl: 'https://github.com/org/repo/commit/1',
+            },
+        ];
+        const orgName = 'org';
+        const repoName = 'repo';
+        const repository = new RepositoryEntity();
+        repositoryRepository.findOne.mockResolvedValue(repository);
+        (cache.get as jest.Mock).mockResolvedValue(null);
+        commitRepository.findOne.mockResolvedValue(null);
+
+        // Mock the functions
+        commitRepository.create.mockReturnValue(new CommitEntity());
+        (parentPort as any).postMessage.mockClear();
+
+        // Simulate worker data
+        (workerData as any).commits = commits;
+        (workerData as any).orgName = orgName;
+        (workerData as any).repoName = repoName;
+
+        await commitWorker;
+
+        // Expectations
+        expect(commitRepository.findOne).toHaveBeenCalled();
+        expect(commitRepository.create).toHaveBeenCalled();
+        expect(commitRepository.save).toHaveBeenCalled();
+        expect(cache.set).toHaveBeenCalledWith(`lastIndexedCommit_${orgName}_${repoName}`, commits[0].commitUrl);
+        expect((parentPort as any).postMessage).toHaveBeenCalledWith({ event: 'success', message: 'Commits processed' });
+    });
+
+    test('should handle repository not found', async () => {
+        // Setup
+        const commits: IGithubCommit[] = [];
+        const orgName = 'org';
+        const repoName = 'repo';
+        repositoryRepository.findOne.mockResolvedValue(null);
+        (parentPort as any).postMessage.mockClear();
+
+        // Simulate worker data
+        (workerData as any).commits = commits;
+        (workerData as any).orgName = orgName;
+        (workerData as any).repoName = repoName;
+
+        await commitWorker;
+
+        // Expectations
+        expect((parentPort as any).postMessage).toHaveBeenCalledWith({ event: 'error', message: `Repository ${orgName}/${repoName} not found` });
+    });
+
+    test('should handle commit processing errors', async () => {
+        // Setup
+        const commits: IGithubCommit[] = [
+            {
+                commitMessage: 'Initial commit',
+                author: 'Author',
+                commitDate: '2024-01-01T00:00:00Z',
+                commitUrl: 'https://github.com/org/repo/commit/1',
+            },
+        ];
+        const orgName = 'org';
+        const repoName = 'repo';
+        const repository = new RepositoryEntity();
+        repositoryRepository.findOne.mockResolvedValue(repository);
+        (cache.get as jest.Mock).mockResolvedValue(null);
+        commitRepository.findOne.mockRejectedValue(new Error('Database error'));
+        (parentPort as any).postMessage.mockClear();
+
+        // Simulate worker data
+        (workerData as any).commits = commits;
+        (workerData as any).orgName = orgName;
+        (workerData as any).repoName = repoName;
+
+        await commitWorker;
+
+        // Expectations
+        expect((parentPort as any).postMessage).toHaveBeenCalledWith({ event: 'error', message: 'Database error' });
+    });
+});

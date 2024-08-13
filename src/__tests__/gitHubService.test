@@ -1,0 +1,117 @@
+import axios, { AxiosInstance } from 'axios';
+import { AppDataSource } from '../ormconfig';
+import { CommitRepository } from '../db/repositories/CommitRepository';
+import { RepositoryRepository } from '../db/repositories/RepositoryRepository';
+import { GitHubService } from '../services/gitHubService';
+// import { CommitEntity } from '../db/entities/CommitEntity';
+// import { IGithubCommit, IGithubRepository } from '../interface';
+import { mockDeep } from 'jest-mock-extended';
+
+jest.mock('axios');
+jest.mock('../db/repositories/CommitRepository');
+jest.mock('../db/repositories/RepositoryRepository');
+
+describe('GitHubService', () => {
+    let gitHubService: GitHubService;
+    let commitRepository: CommitRepository;
+    let repositoryRepository: RepositoryRepository;
+    const axiosInstance = mockDeep<AxiosInstance>();
+
+    beforeEach(() => {
+        commitRepository = mockDeep<CommitRepository>();
+        repositoryRepository = mockDeep<RepositoryRepository>();
+        gitHubService = new GitHubService('https://api.github.com', axiosInstance, commitRepository, repositoryRepository);
+    });
+
+    test('should fetch commits', async () => {
+        (axiosInstance.get as jest.Mock).mockResolvedValue({ data: [] });
+
+        const result = await gitHubService.getCommits('org', 'repo');
+
+        expect(result).toEqual({ totalRecords: 0, commits: [] });
+        expect(axiosInstance.get).toHaveBeenCalledWith('https://api.github.com/repos/org/repo/commits', { params: { page: 1, per_page: 100 } });
+    });
+
+    test('should handle commit fetch errors', async () => {
+        (axiosInstance.get as jest.Mock).mockRejectedValue(new Error('Network Error'));
+
+        await expect(gitHubService.getCommits('org', 'repo'))
+            .rejects
+            .toThrow('Failed to fetch commits');
+    });
+
+    test('should fetch repository info', async () => {
+        (axiosInstance.get as jest.Mock).mockResolvedValue({ data: { name: 'repo', description: 'desc', html_url: 'url' } });
+
+        const result = await gitHubService.getRepositoryInfo('org', 'repo');
+
+        expect(result).toEqual({
+            name: 'repo',
+            description: 'desc',
+            url: 'url',
+            language: '',
+            forks_count: 0,
+            stars_count: 0,
+            open_issues_count: 0,
+            watchers_count: 0,
+            created_at: '',
+            updated_at: '',
+        });
+    });
+
+    test('should handle repository info fetch errors', async () => {
+        (axiosInstance.get as jest.Mock).mockRejectedValue(new Error('Network Error'));
+
+        await expect(gitHubService.getRepositoryInfo('org', 'repo'))
+            .rejects
+            .toThrow('Failed to fetch repository info');
+    });
+
+    test('should fetch top commit authors', async () => {
+        (commitRepository.createQueryBuilder as jest.Mock).mockReturnValue({
+            select: jest.fn().mockReturnThis(),
+            addSelect: jest.fn().mockReturnThis(),
+            groupBy: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            getRawMany: jest.fn().mockResolvedValue([{ author: 'author', count: '10' }]),
+        });
+
+        const result = await gitHubService.getTopCommitAuthors(1);
+
+        expect(result).toEqual([{ author: 'author', count: 10 }]);
+    });
+
+    test('should handle top commit authors fetch errors', async () => {
+        (commitRepository.createQueryBuilder as jest.Mock).mockReturnValue({
+            select: jest.fn().mockReturnThis(),
+            addSelect: jest.fn().mockReturnThis(),
+            groupBy: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            getRawMany: jest.fn().mockRejectedValue(new Error('Query Error')),
+        });
+
+        await expect(gitHubService.getTopCommitAuthors(1))
+            .rejects
+            .toThrow('Failed to fetch top commit authors');
+    });
+
+    test('should add a repository', async () => {
+        (axiosInstance.get as jest.Mock).mockResolvedValue({ data: { name: 'repo', description: 'desc', html_url: 'url' } });
+        (repositoryRepository.findOne as jest.Mock).mockResolvedValue(null);
+        (repositoryRepository.save as jest.Mock).mockResolvedValue({});
+
+        const result = await gitHubService.addRepository({ orgName: 'org', repoName: 'repo' });
+
+        expect(result).toEqual({ message: 'Indexing for repository org/repo has been triggered.' });
+    });
+
+    test('should handle add repository errors', async () => {
+        (axiosInstance.get as jest.Mock).mockRejectedValue(new Error('Network Error'));
+
+        await expect(gitHubService.addRepository({ orgName: 'org', repoName: 'repo' }))
+            .rejects
+            .toThrow('Failed to add repository');
+    });
+});

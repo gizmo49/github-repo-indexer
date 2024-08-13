@@ -50,10 +50,11 @@ export class GitHubService {
         return { totalRecords, commits };
     }
 
-    async getRepositoryInfo(orgName: string, repoName: string): Promise<IGithubRepository> {
+    async getRepositoryInfo(orgName: string, repoName: string): Promise<IGithubRepository | null> {
         const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
         const data = response.data;
-        return {
+
+        return data ? {
             name: data.name || '',
             description: data.description || '',
             url: data.html_url || '',
@@ -64,7 +65,7 @@ export class GitHubService {
             watchers_count: data.watchers_count || 0,
             created_at: data.created_at || '',
             updated_at: data.updated_at || '',
-        };
+        } : null;
     }
 
     async getTopCommitAuthors(limit: number): Promise<{ author: string, count: number }[]> {
