@@ -1,12 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
-import { CommitDTO } from '../dtos/CommitDTO';
-import { RepositoryDTO } from '../dtos/RepositoryDTO';
 import { AppDataSource } from '../ormconfig';
-
 import { parentPort } from 'worker_threads';
 import { CommitEntity } from '../db/entities/CommitEntity';
 import { CommitRepository } from '../db/repositories/CommitRepository';
 import { RepositoryRepository } from '../db/repositories/RepositoryRepository';
+import { IGithubCommit, IGithubRepository } from '../interface';
 
 export class GitHubService {
     private baseUrl: string;
@@ -26,8 +24,8 @@ export class GitHubService {
         this.repositoryRepository = repositoryRepository;
     }
 
-    async getCommits(orgName: string, repoName: string, sinceDate?: string, page = 1, perPage = 100): Promise<{ totalRecords: number, commits: CommitDTO[] }> {
-        const commits: CommitDTO[] = [];
+    async getCommits(orgName: string, repoName: string, sinceDate?: string, page = 1, perPage = 100): Promise<{ totalRecords: number, commits: IGithubCommit[] }> {
+        const commits: IGithubCommit[] = [];
         let hasNextPage = true;
 
         while (hasNextPage) {
@@ -52,7 +50,7 @@ export class GitHubService {
         return { totalRecords, commits };
     }
 
-    async getRepositoryInfo(orgName: string, repoName: string): Promise<RepositoryDTO> {
+    async getRepositoryInfo(orgName: string, repoName: string): Promise<IGithubRepository> {
         const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
         const data = response.data;
         return {
@@ -84,7 +82,7 @@ export class GitHubService {
         }));
     }
 
-    async getCommitsByRepositoryName(orgName: string, repoName: string): Promise<CommitDTO[]> {
+    async getCommitsByRepositoryName(orgName: string, repoName: string): Promise<IGithubCommit[]> {
         const commits: CommitEntity[] = await this.commitRepository.find({
             where: { repository: { orgName, repoName } },
             relations: ['repository'],
@@ -100,7 +98,7 @@ export class GitHubService {
 
     async addRepository({ orgName, repoName }: { orgName: string; repoName: string }): Promise<{ message: string }> {
         const response = await this.axiosInstance.get(`${this.baseUrl}/repos/${orgName}/${repoName}`);
-        const repoData: RepositoryDTO = {
+        const repoData: IGithubRepository = {
             name: response.data.name || '',
             description: response.data.description || '',
             url: response.data.html_url || '',

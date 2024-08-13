@@ -1,8 +1,8 @@
 import express from 'express';
 import { setupSwagger } from './swagger';
-import { webhookController } from './controllers/WebhookController';
 import { AppDataSource } from './ormconfig';
 import { monitoringService } from './services/monitoringService';
+import router from './routes';
 
 const app = express();
 app.use(express.json());
@@ -11,7 +11,7 @@ app.use(express.json());
 setupSwagger(app);
 
 // Routes
-app.use('/api', webhookController);
+app.use('/api/v1', router);
 
 // Connect to database and start monitoring
 AppDataSource.initialize().then(() => {

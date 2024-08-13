@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
-import { RepositoryDTO } from '../dtos/RepositoryDTO';
-import { CommitDTO } from '../dtos/CommitDTO';
+import { Router, Request, Response } from 'express';
 import { gitHubService } from '../services/gitHubService';
+import { IGithubCommit, IGithubRepository } from '../interface';
+
+const router = Router();
 
 /**
  * @openapi
- * /commits:
+ * /api/v1/github/commits:
  *   get:
  *     summary: Get commits from a repository
  *     parameters:
@@ -66,19 +67,19 @@ import { gitHubService } from '../services/gitHubService';
  *       500:
  *         description: Internal server error
  */
-export const getCommits = async (req: Request, res: Response): Promise<void> => {
+router.get('/commits', async (req: Request, res: Response): Promise<void> => {
     const { orgName, repoName, sinceDate, page, perPage } = req.query as any;
     try {
         const { totalRecords, commits } = await gitHubService.getCommits(orgName, repoName, sinceDate, page, perPage);
         res.json({ totalRecords, commits });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });
     }
-};
+});
 
 /**
  * @openapi
- * /repository/{orgName}/{repoName}:
+ * /api/v1/github/repository/{orgName}/{repoName}:
  *   get:
  *     summary: Get repository information
  *     parameters:
@@ -127,19 +128,19 @@ export const getCommits = async (req: Request, res: Response): Promise<void> => 
  *       500:
  *         description: Internal server error
  */
-export const getRepositoryInfo = async (req: Request, res: Response): Promise<void> => {
+router.get('/repository/:orgName/:repoName', async (req: Request, res: Response): Promise<void> => {
     const { orgName, repoName } = req.params;
     try {
-        const repoInfo: RepositoryDTO = await gitHubService.getRepositoryInfo(orgName, repoName);
+        const repoInfo: IGithubRepository = await gitHubService.getRepositoryInfo(orgName, repoName);
         res.json(repoInfo);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });
     }
-};
+});
 
 /**
  * @openapi
- * /top-authors:
+ * /api/v1/github/top-authors:
  *   get:
  *     summary: Get top N commit authors by commit counts
  *     parameters:
@@ -167,19 +168,19 @@ export const getRepositoryInfo = async (req: Request, res: Response): Promise<vo
  *       500:
  *         description: Internal server error
  */
-export const getTopCommitAuthors = async (req: Request, res: Response): Promise<void> => {
+router.get('/top-authors', async (req: Request, res: Response): Promise<void> => {
     const { limit } = req.query as any;
     try {
         const topAuthors = await gitHubService.getTopCommitAuthors(Number(limit));
         res.json(topAuthors);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });
     }
-};
+});
 
 /**
  * @openapi
- * /commits-by-repo/{orgName}/{repoName}:
+ * /api/v1/github/commits-by-repo/{orgName}/{repoName}:
  *   get:
  *     summary: Retrieve commits of a repository by repository name
  *     parameters:
@@ -217,19 +218,19 @@ export const getTopCommitAuthors = async (req: Request, res: Response): Promise<
  *       500:
  *         description: Internal server error
  */
-export const getCommitsByRepositoryName = async (req: Request, res: Response): Promise<void> => {
+router.get('/commits-by-repo/:orgName/:repoName', async (req: Request, res: Response): Promise<void> => {
     const { orgName, repoName } = req.params;
     try {
-        const commits: CommitDTO[] = await gitHubService.getCommitsByRepositoryName(orgName, repoName);
+        const commits: IGithubCommit[] = await gitHubService.getCommitsByRepositoryName(orgName, repoName);
         res.json(commits);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });
     }
-};
+});
 
 /**
  * @openapi
- * /api/github/add-repository:
+ * /api/v1/github/add-repository:
  *   post:
  *     summary: Add or update a GitHub repository and trigger commit indexing
  *     requestBody:
@@ -258,13 +259,15 @@ export const getCommitsByRepositoryName = async (req: Request, res: Response): P
  *                 message:
  *                   type: string
  */
-export async function addRepository(req: Request, res: Response) {
+router.post('/add-repository', async (req: Request, res: Response): Promise<void> => {
     const { orgName, repoName } = req.body as { orgName: string; repoName: string };
 
     try {
         const result = await gitHubService.addRepository({ orgName, repoName });
         res.json(result);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: (error instanceof Error) ? error.message : 'An error occurred' });
     }
-}
+});
+
+export { router as githubController };

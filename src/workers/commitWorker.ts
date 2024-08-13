@@ -3,8 +3,16 @@ import { cache } from '../services/cacheService';
 import { AppDataSource } from '../ormconfig';
 import { CommitEntity } from '../db/entities/CommitEntity';
 import { RepositoryEntity } from '../db/entities/RepositoryEntity';
+import { IGithubCommit } from '../interface';
 
-const { commits, orgName, repoName } = workerData;
+
+const commitWorkData: {
+    commits: IGithubCommit[];
+    orgName: string;
+    repoName: string;
+} = workerData;
+
+const { commits, orgName, repoName } = commitWorkData;
 
 const commitRepository = AppDataSource.getRepository(CommitEntity);
 const repositoryRepository = AppDataSource.getRepository(RepositoryEntity);

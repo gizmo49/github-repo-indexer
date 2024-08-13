@@ -10,7 +10,7 @@ class MonitoringService {
     private commitRepository = AppDataSource.getRepository(CommitEntity);
 
     constructor() {
-        this.seedChromiumRepository(); // Seed the Chromium repo on start-up
+        // this.seedChromiumRepository(); // Seed the Chromium repo on start-up
         this.startMonitoring(); // Start the regular monitoring process
     }
 

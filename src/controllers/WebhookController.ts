@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import commitQueue from '../queues/commitQueue';
-import { getRepositorySecret } from '../services/SecretService';
+import { getRepositorySecret } from '../services/secretService';
 import { gitHubService } from '../services/gitHubService';
 
 
@@ -9,7 +9,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/webhooks/github:
+ * /api/v1/webhooks/github:
  *   post:
  *     summary: Handle GitHub webhook events
  *     requestBody:
@@ -161,16 +161,19 @@ router.post('/webhooks/github', async (req: Request, res: Response) => {
         if (signature !== digest) {
             return res.status(400).send('Invalid signature');
         }
-
+ 
         const event = req.headers['x-github-event'];
         if (event === 'push') {
             const commits = await gitHubService.getCommits(orgName, repoName);
             await commitQueue.add({ commits, repoName });
         }
         res.status(200).send('Webhook received');
-    } catch (error: any) {
-        console.error('Error handling webhook:', error.message);
-        res.status(500).send('Internal server error');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(400).json({ error: 'An error occurred' });
+        }
     }
 });
 

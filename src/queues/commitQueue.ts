@@ -1,6 +1,6 @@
 import Bull from 'bull';
 import { Worker } from 'worker_threads';
-import { CommitDTO } from '../dtos/CommitDTO';
+import { IGithubCommit } from '../interface';
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -10,7 +10,7 @@ const commitQueue = new Bull('commitQueue', {
 });
 
 commitQueue.process(async (job) => {
-    const { commits, orgName, repoName }: { commits: CommitDTO[], orgName: string, repoName: string } = job.data;
+    const { commits, orgName, repoName }: { commits: IGithubCommit[], orgName: string, repoName: string } = job.data;
 
     // Offload the processing to a worker thread
     const worker = new Worker('./src/workers/commitWorker.ts', {
