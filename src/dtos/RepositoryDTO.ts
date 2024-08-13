@@ -1,4 +1,4 @@
-export class RepositoryDTO {
+export interface RepositoryDTO {
     name: string;
     description: string;
     url: string;

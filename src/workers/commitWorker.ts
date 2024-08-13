@@ -1,13 +1,13 @@
 import { parentPort, workerData } from 'worker_threads';
 import { cache } from '../services/cacheService';
-import { AppDataSource } from '../data-source';
-import { CommitEntitySchema } from '../db/schema/CommitEntitySchema';
-import { RepositoryEntitySchema } from '../db/schema/RepositoryEntitySchema';
+import { AppDataSource } from '../ormconfig';
+import { CommitEntity } from '../db/entities/CommitEntity';
+import { RepositoryEntity } from '../db/entities/RepositoryEntity';
 
 const { commits, orgName, repoName } = workerData;
 
-const commitRepository = AppDataSource.getRepository(CommitEntitySchema);
-const repositoryRepository = AppDataSource.getRepository(RepositoryEntitySchema);
+const commitRepository = AppDataSource.getRepository(CommitEntity);
+const repositoryRepository = AppDataSource.getRepository(RepositoryEntity);
 
 async function processCommits() {
     // Find or create the repository entity

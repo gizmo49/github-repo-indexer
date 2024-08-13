@@ -1,8 +1,8 @@
-import { AppDataSource } from '../data-source';
-import { RepositoryEntitySchema } from '../db/schema/RepositoryEntitySchema';
+import { AppDataSource } from '../ormconfig';
+import { RepositoryEntity } from '../db/entities/RepositoryEntity';
 
 export const getRepositorySecret = async (repoName: string, orgName: string): Promise<string | null> => {
-    const repositoryRepo = AppDataSource.getRepository(RepositoryEntitySchema); // Use schema
+    const repositoryRepo = AppDataSource.getRepository(RepositoryEntity); // Use schema
 
     try {
         const repository = await repositoryRepo.findOne({
@@ -10,7 +10,7 @@ export const getRepositorySecret = async (repoName: string, orgName: string): Pr
         });
 
         return repository ? repository.secret : null;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching repository secret:', error.message);
         return null;
     }

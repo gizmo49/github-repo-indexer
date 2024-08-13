@@ -1,7 +1,7 @@
 import express from 'express';
 import { setupSwagger } from './swagger';
 import { webhookController } from './controllers/WebhookController';
-import { AppDataSource } from './data-source';
+import { AppDataSource } from './ormconfig';
 import { monitoringService } from './services/monitoringService';
 
 const app = express();

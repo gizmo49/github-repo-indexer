@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { RepositoryDTO } from '../dtos/RepositoryDTO';
 import { CommitDTO } from '../dtos/CommitDTO';
-import { gitHubService } from '../services/GitHubService';
+import { gitHubService } from '../services/gitHubService';
 
 /**
  * @openapi
@@ -71,7 +71,7 @@ export const getCommits = async (req: Request, res: Response): Promise<void> => 
     try {
         const { totalRecords, commits } = await gitHubService.getCommits(orgName, repoName, sinceDate, page, perPage);
         res.json({ totalRecords, commits });
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -132,7 +132,7 @@ export const getRepositoryInfo = async (req: Request, res: Response): Promise<vo
     try {
         const repoInfo: RepositoryDTO = await gitHubService.getRepositoryInfo(orgName, repoName);
         res.json(repoInfo);
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -172,7 +172,7 @@ export const getTopCommitAuthors = async (req: Request, res: Response): Promise<
     try {
         const topAuthors = await gitHubService.getTopCommitAuthors(Number(limit));
         res.json(topAuthors);
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -222,7 +222,7 @@ export const getCommitsByRepositoryName = async (req: Request, res: Response): P
     try {
         const commits: CommitDTO[] = await gitHubService.getCommitsByRepositoryName(orgName, repoName);
         res.json(commits);
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -264,7 +264,7 @@ export async function addRepository(req: Request, res: Response) {
     try {
         const result = await gitHubService.addRepository({ orgName, repoName });
         res.json(result);
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
 }

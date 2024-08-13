@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { gitHubService } from '../services/GitHubService';
 import commitQueue from '../queues/commitQueue';
 import { getRepositorySecret } from '../services/SecretService';
+import { gitHubService } from '../services/gitHubService';
+
 
 const router = Router();
 
@@ -166,9 +167,8 @@ router.post('/webhooks/github', async (req: Request, res: Response) => {
             const commits = await gitHubService.getCommits(orgName, repoName);
             await commitQueue.add({ commits, repoName });
         }
-
         res.status(200).send('Webhook received');
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error handling webhook:', error.message);
         res.status(500).send('Internal server error');
     }

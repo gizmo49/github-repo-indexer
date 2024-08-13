@@ -1,12 +1,13 @@
-import { AppDataSource } from '../data-source';
-import { RepositoryEntitySchema } from '../db/schema/RepositoryEntitySchema';
-import { CommitEntitySchema } from '../db/schema/CommitEntitySchema';
-import { gitHubService } from './GitHubService';
+import { AppDataSource } from '../ormconfig';
 import commitQueue from '../queues/commitQueue'; // Import the commit queue
+import { RepositoryEntity } from '../db/entities/RepositoryEntity';
+import { CommitEntity } from '../db/entities/CommitEntity';
+import { gitHubService } from './gitHubService';
+
 
 class MonitoringService {
-    private repoRepository = AppDataSource.getRepository(RepositoryEntitySchema);
-    private commitRepository = AppDataSource.getRepository(CommitEntitySchema);
+    private repoRepository = AppDataSource.getRepository(RepositoryEntity);
+    private commitRepository = AppDataSource.getRepository(CommitEntity);
 
     constructor() {
         this.seedChromiumRepository(); // Seed the Chromium repo on start-up
@@ -64,7 +65,7 @@ class MonitoringService {
             } else {
                 await this.repoRepository.update({ orgName, repoName }, { indexingComplete: true });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error indexing commits for ${orgName}/${repoName}:`, error.message);
         }
     }
@@ -108,7 +109,7 @@ class MonitoringService {
         try {
             await this.ensureRepository(orgName, repoName);
             console.log(`Chromium repository ${orgName}/${repoName} has been initialized.`);
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error seeding Chromium repository:`, error.message);
         }
     }
@@ -118,7 +119,7 @@ class MonitoringService {
             try {
                 await this.processRepositories();
                 console.log('Repository monitoring completed successfully.');
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error in repository monitoring:', error.message);
             }
         }, 60 * 60 * 1000); // Every hour

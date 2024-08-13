@@ -1,8 +1,7 @@
-import { GitHubService } from '../services/GitHubService';
 import axios from 'axios';
-import { RepositoryEntitySchema } from '../db/schema/RepositoryEntitySchema';
-import { CommitEntitySchema } from '../db/schema/CommitEntitySchema';
-import { AppDataSource } from '../data-source';
+import { GitHubService } from '../services/gitHubService';
+import { AppDataSource } from '../ormconfig';
+import { CommitEntity } from '../db/entities/CommitEntity';
 
 // Mocking axios and AppDataSource
 jest.mock('axios');
@@ -10,6 +9,7 @@ jest.mock('../data-source', () => ({
     AppDataSource: {
         getRepository: jest.fn()
     }
+    
 }));
 
 const mockAxios = axios as jest.Mocked<typeof axios>;
@@ -41,7 +41,7 @@ describe('GitHubService', () => {
         // Mocking getRepository to return our mocks
         jest.spyOn(AppDataSource, 'getRepository')
             .mockImplementation((schema: any) => {
-                return schema === CommitEntitySchema ? mockCommitRepository : mockRepositoryRepository;
+                return schema === CommitEntity ? mockCommitRepository : mockRepositoryRepository;
             });
 
         gitHubService = new GitHubService();
